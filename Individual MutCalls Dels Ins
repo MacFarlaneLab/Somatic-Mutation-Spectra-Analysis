@@ -1,0 +1,77 @@
+########### Code to clean up Deletions and insertion commoncall and get INDIVIDUAL dels and ins tables to then use with the INDIVIDUAL common calls files and then plot######
+
+library(readr)
+library(reshape2)
+
+# 1- Import files 
+delsCommoncalls <- read_delim("Your text file", "\t", escape_double = FALSE, trim_ws = TRUE)
+
+
+# 2- Order files by sample
+delscallsbySample <- delsCommoncalls [order(substring(delsCommoncalls$Sample, 6, 7)),]
+
+# 3- Make negative values 0 and round +ve values
+delscallsbySample$newtotal <- NA
+
+delscallsbySample$newtotal <- ifelse (delscallsbySample$Total > 0, round(delscallsbySample$Total), 0)
+
+# 4- Remove Dels avobe highest BG from Your tissue's commoncalls (Here we use 0.0046 because thatwas our highest bg for Bone marrow)
+#This iis done to minimized false indels calls
+
+ind.dels <- subset(delscallsbySample, delscallsbySample$BgRate <= 0.0046) 
+
+
+# 5- Remove all dels with a zero value
+
+ind.dels <- subset(ind.dels, ind.dels$newtotal>0)
+
+# 6- Give a value of 1 to all remaning Dels to count them as individual mutations
+
+ind.dels$newtotal <-1
+
+# 7- Aggregate the Dels by sample and order by sample
+
+summaryDels <- aggregate(ind.dels$newtotal,by = list(file = ind.dels$Sample), FUN = sum)
+
+summaryDels <- summaryDels [order(substring(summaryDels$file, 6, 7)),]
+
+# 8- Create new column with the Sample number
+summaryDels$sample <- as.character(substring(summaryDels$file, 6, 7))
+
+
+#### NEW TABLE - dels by sample
+#### 9- Only samples and dels
+
+sampleDels <- aggregate(summaryDels$x, by = list(sample = summaryDels$sample), FUN = mean)
+
+
+## 10- Add column for treatment
+sampleDels$diet <- NA
+sampleDels <- sampleDels[, c(3, 1, 2)] # Order columns
+
+sampleDels$diet <- ifelse(as.numeric(sampleDels$sample) <= 10 , "Deficient", 
+                          ifelse(as.numeric(sampleDels$sample) >= 41, "Supplemented", "Control"))
+
+####
+###### OUTLIERS - Get rid of outliers if needed or if you need to drop rows
+###
+
+#sampleDels <- sampleDels[-c(5),]
+
+
+
+# 11- Rename columns (Depends on wether you are analysing deletions or insertions. Name appropiately) 
+
+# for Ins
+#colnames(sampleDels) <- c("diet", "sample", "total.ins")
+
+#for dels
+#colnames(sampleDels) <- c("diet", "sample", "total.dels")
+
+
+
+write.table(ind.dels, "BM Dels Calls.txt", sep = "\t", row.names = FALSE )
+write.table(sampleDels, "BM Dels by Sample.txt", sep = "\t", row.names = FALSE )
+
+
+
